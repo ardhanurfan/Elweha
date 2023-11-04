@@ -96,6 +96,7 @@ function Dashboard() {
   const [onSelectedAkta, setOnSelectedAkta] = useState<Array<number>>([]);
 
   const [hampirHabis, setHampirHabis] = useState<any | null>(null);
+  const [stok, setStok] = useState<any | null>(null);
 
   const [period, setPeriod] = useState<{ value: string; label: string }>();
 
@@ -407,7 +408,7 @@ function Dashboard() {
   const getBarang = async () => {
     if (token) {
       try {
-        const barang = await getWithAuth(token, `barang`);
+        const barang = await getWithAuth(token, `barang?kategori_barang=Stok`);
         setBarangDataDropdown(
           barang.data.data.data.map((data: any) => {
             return {
@@ -428,9 +429,9 @@ function Dashboard() {
       try {
         const barang = await getWithAuth(
           token,
-          `barang?&month=${period ? period?.value.split("-")[0] : ""}&year=${
-            period ? period?.value.split("-")[1] : ""
-          }`
+          `barang?kategori_barang=Stok&month=${
+            period ? period?.value.split("-")[0] : ""
+          }&year=${period ? period?.value.split("-")[1] : ""}`
         );
         setHampirHabis(
           barang.data.data.data
@@ -444,6 +445,17 @@ function Dashboard() {
                 satuan: row.satuan,
               };
             })
+        );
+        setStok(
+          barang.data.data.data.map((row: any) => {
+            return {
+              id: row.id,
+              nama_barang: row.nama_barang,
+              jenis: row.jenis.nama,
+              jumlah: row.jumlah,
+              satuan: row.satuan,
+            };
+          })
         );
         if (
           barang.data.data.data.filter((datum: any) => datum.jumlah <= 5)
@@ -1122,18 +1134,9 @@ function Dashboard() {
                 Stok Barang
               </Link>
               <hr className="my-3 bg-black" />
-              {hampirHabis && hampirHabis.length > 0 ? (
-                <h1 className="my-3 text-14 font-semibold xl:text-20">
-                  Stok Hampir Habis {"(<=5)"}
-                </h1>
-              ) : (
-                <h1 className="my-3 text-14 xl:text-20">
-                  Stok Masih Cukup {"(>5)"}
-                </h1>
-              )}
               <div className="h-[120px] w-full overflow-auto pr-2">
-                {hampirHabis &&
-                  hampirHabis.map((row: any, index: number) => (
+                {stok &&
+                  stok.map((row: any, index: number) => (
                     <div
                       key={index}
                       className="my-3 flex items-center justify-between"

@@ -9,7 +9,7 @@ import DateFieldNormal from "../../components/DateFieldNormal";
 import TextArea from "../../components/TextArea";
 import LoadingPage from "../../components/LoadingPage";
 import { dataMonth } from "../../data/month";
-import { getWithAuth, postWithAuth } from "../../api/api";
+import { getWithAuth, postWithAuth, postWithAuthJson } from "../../api/api";
 import { toastError, toastSuccess } from "../../components/Toast";
 import moment from "moment";
 import { FormatRupiah } from "@arismun/format-rupiah";
@@ -18,6 +18,10 @@ import { formatRp, formatRpReverse } from "../../data/formatRp";
 import { UserContext } from "../../Context/UserContext";
 import { sparator, sparatorReverse } from "../../data/sparator";
 import EditModal from "../../components/EditModal";
+import UploadFile from "../../components/UploadFile";
+import * as XLSX from "xlsx";
+import { readPendapatan } from "../../data/excelToJson";
+import * as FileSaver from "file-saver";
 
 function Pendapatan() {
   // Loading
@@ -50,6 +54,11 @@ function Pendapatan() {
   // Data
   const [data, setData] = useState([]);
   const [totalPendapatan, setTotalPendapatan] = useState(0);
+
+  //Upload File
+  const [showUpload, setShowUpload] = useState(false);
+  const [isUpload, setIsUpload] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
 
   // Table
   const kolom = [
@@ -132,7 +141,7 @@ function Pendapatan() {
 
   useEffect(() => {
     getData();
-  }, []);
+  }, [totalData]);
 
   useEffect(() => {
     getPendapatan();
@@ -223,6 +232,7 @@ function Pendapatan() {
         },
         token ?? ""
       );
+      console.log(response);
       toastSuccess(response.data.meta.message);
       setShowTambahPendapatan(false);
       setTotalData(totalData + 1);
@@ -277,6 +287,73 @@ function Pendapatan() {
       toastError((error as any).response.data.meta.message as string);
     } finally {
       setIsHapusPendapatan(false);
+    }
+  };
+
+  const uploadFile = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsUpload(true);
+    try {
+      let selectedFile = file;
+      const fileType = [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+      ];
+      if (selectedFile) {
+        if (selectedFile && fileType.includes(selectedFile.type)) {
+          let reader = new FileReader();
+          reader.readAsArrayBuffer(selectedFile);
+          reader.onload = async (e) => {
+            var excelFile = e.target!.result;
+            const workbook = XLSX.read(excelFile, { type: "buffer" });
+            const worksheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[worksheetName];
+            const data = XLSX.utils.sheet_to_json(worksheet);
+            console.log(data);
+            console.log(readPendapatan(data));
+            try {
+              await postWithAuthJson(
+                "upload-pendapatan",
+                readPendapatan(data),
+                token ?? ""
+              );
+              toastSuccess("Upload successfully");
+              setShowUpload(false);
+              setTotalData(totalData + readPendapatan(data).length)
+              console.log(readPendapatan(data));
+            } catch (error) {
+              toastError(error as string);
+              console.log(error);
+            }
+          };
+        } else {
+          toastError("Please select only excel file types");
+          setFile(null);
+        }
+      } else {
+        toastError("Please select your file");
+      }
+    } catch (error) {
+      toastError("Upload file failed");
+    } finally {
+      setIsUpload(false);
+    }
+  };
+
+  const ExportFile = (data: any, name: string) => {
+    try {
+      const fileType = [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+      ];
+      const fileExtension = ".xlsx";
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = { Sheets: { data: ws }, SheetNames: ["data"] };
+      const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const datum = new Blob([excelBuffer], { type: fileType[0] });
+      FileSaver.saveAs(datum, name + fileExtension);
+    } catch (error) {
+      toastError("Export file failed");
     }
   };
 
@@ -488,6 +565,35 @@ function Pendapatan() {
         </form>
       </Modal>
 
+      {/* Upload Pendapatan */}
+      <Modal visible={showUpload} onClose={() => setShowUpload(false)}>
+        <form
+          onSubmit={(e) => uploadFile(e)}
+          className="flex w-full flex-col gap-4"
+        >
+          <h1 className="text-center text-24 font-bold xl:text-start xl:text-40">
+            Upload File Pendapatan
+          </h1>
+          <div className="flex flex-col justify-between gap-4 xl:flex-row">
+            <UploadFile childToParent={(e) => setFile(e)} />
+          </div>
+          <div className="flex w-full justify-center gap-4 xl:justify-end">
+            <Button
+              onClick={() => setShowUpload(false)}
+              text={"Batalkan"}
+              type={"button"}
+              style={"third"}
+            />
+            <Button
+              text={"Input Data"}
+              type={"submit"}
+              style={"primary"}
+              isLoading={isUpload}
+            />
+          </div>
+        </form>
+      </Modal>
+
       <div className="flex min-h-screen w-full flex-col bg-background px-5 pb-24 pt-[104px] xl:px-24">
         <h1 className="mb-12 hidden text-40 font-bold xl:block">Pendapatan</h1>
         <div className="mb-5 flex w-full justify-between xl:justify-start">
@@ -498,19 +604,33 @@ function Pendapatan() {
             <FormatRupiah value={totalPendapatan} />
           </p>
         </div>
+        <div className="mb-5 flex w-full items-center justify-between xl:justify-start">
+          <p className="w-auto text-16 font-bold xl:w-[250px] xl:text-24 ">
+            Periode
+          </p>
+          <div className="w-[160px] md:w-[200px]">
+            <Dropdown
+              placeholder={"Select Period"}
+              type={"month"}
+              options={dataMonth(new Date("01/01/2000"), new Date())}
+              onChange={(e) => setPeriod(e!)}
+            />
+          </div>
+        </div>
         <div className="mb-5 flex flex-col justify-between gap-11 xl:flex-row">
-          <div className="flex w-full items-center justify-between xl:justify-start">
-            <p className="w-auto text-16 font-bold xl:w-[250px] xl:text-24 ">
-              Periode
-            </p>
-            <div className="w-[160px] md:w-[200px]">
-              <Dropdown
-                placeholder={"Select Period"}
-                type={"month"}
-                options={dataMonth(new Date("01/01/2000"), new Date())}
-                onChange={(e) => setPeriod(e!)}
-              />
-            </div>
+          <div className="flex w-full items-center justify-between xl:justify-start gap-4">
+            <Button
+              onClick={() => setShowUpload(true)}
+              text={"Import Pendapatan"}
+              type={"button"}
+              style={"third"}
+            />
+            <Button
+              onClick={() => ExportFile(data, "Pendapatan")}
+              text={"Export Pendapatan"}
+              type={"button"}
+              style={"third"}
+            />
           </div>
           <div className="flex w-full justify-center gap-4 xl:justify-end">
             {user?.role == "BOD" && (

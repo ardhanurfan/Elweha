@@ -32,6 +32,7 @@ function Stok() {
   // PopUp
   const [showEditJenis, setShowEditJenis] = useState(false);
   const [showTambahBarang, setShowTambahBarang] = useState(false);
+  const [showTambahAset, setShowTambahAset] = useState(false);
   const [showEditBarang, setShowEditBarang] = useState(false);
   const [showHapusBarang, setShowHapusBarang] = useState(false);
   const [showTambahAmbil, setShowTambahAmbil] = useState(false);
@@ -64,19 +65,25 @@ function Stok() {
   const [namaPengambil, setNamaPengambil] = useState("");
   const [tanggalAmbil, setTanggalAmbil] = useState<Date | null>();
   const [searchBarang, setSearchBarang] = useState("");
+  const [searchAset, setSearchAset] = useState("");
   const [searchAmbil, setSearchAmbil] = useState("");
 
   // Data
   const [dataBarang, setDataBarang] = useState([]);
+  const [dataAset, setDataAset] = useState([]);
   const [dataAmbil, setDataAmbil] = useState([]);
 
   // Table Barang
   const [pageBarang, setPageBarang] = useState(1);
   const [totalPageBarang, setTotalPageBarang] = useState(1);
   const [totalDataBarang, setTotalDataBarang] = useState(0);
+  const [pageAset, setPageAset] = useState(1);
+  const [totalPageAset, setTotalPageAset] = useState(1);
+  const [totalDataAset, setTotalDataAset] = useState(0);
   const [idEditBarang, setIdEditBarang] = useState(-1);
   const [jenisIdBarang, setJenisIdBarang] = useState<Array<number>>([]);
   const [onSelectedBarang, setOnSelectedBarang] = useState<Array<number>>([]);
+  const [onSelectedAset, setOnSelectedAset] = useState<Array<number>>([]);
 
   // Table Barang
   const [pageAmbil, setPageAmbil] = useState(1);
@@ -118,7 +125,7 @@ function Stok() {
     }
   };
 
-  const getBarang = async () => {
+  const getStok = async () => {
     setOnSelectedBarang([]);
     setIsTableLoadBarang(true);
     if (token) {
@@ -129,7 +136,7 @@ function Stok() {
         });
         const barang = await getWithAuth(
           token,
-          `barang?limit=10&page=${pageBarang}&month=${
+          `barang?kategori_barang=Stok&limit=10&page=${pageBarang}&month=${
             period ? period?.value.split("-")[0] : ""
           }&year=${
             period ? period?.value.split("-")[1] : ""
@@ -159,6 +166,47 @@ function Stok() {
             };
           })
         );
+      } catch (error) {
+        toastError("Get Data Barang Table Failed");
+      } finally {
+        setIsTableLoadBarang(false);
+      }
+    }
+  };
+
+  const getAset = async () => {
+    setOnSelectedAset([]);
+    setIsTableLoadBarang(true);
+    if (token) {
+      try {
+        var filter = "";
+        jenisIdBarang.forEach((id, idx) => {
+          filter += `&jenis_id[${idx}]=${id}`;
+        });
+        const barang = await getWithAuth(
+          token,
+          `barang?kategori_barang=Aset&limit=10&page=${pageAset}&month=${
+            period ? period?.value.split("-")[0] : ""
+          }&year=${
+            period ? period?.value.split("-")[1] : ""
+          }&search=${searchAset}${filter}${
+            user.role == "OFFICER" ? "&user_id=" + user.id : ""
+          }`
+        );
+        setDataAset(
+          barang.data.data.data.map((data: any) => {
+            return {
+              id: data.id,
+              tanggal: moment(data.tanggal).format("DD MMMM YYYY"),
+              nama_barang: data.nama_barang,
+              jenis: data.jenis.nama,
+              jumlah: sparator(data.jumlah),
+              satuan: data.satuan,
+            };
+          })
+        );
+        setTotalPageAset(barang.data.data.last_page);
+        setTotalDataAset(barang.data.data.total);
       } catch (error) {
         toastError("Get Data Barang Table Failed");
       } finally {
@@ -214,7 +262,7 @@ function Stok() {
   }, []);
 
   useEffect(() => {
-    getBarang();
+    getStok();
   }, [
     pageBarang,
     totalDataBarang,
@@ -222,6 +270,17 @@ function Stok() {
     searchBarang,
     jenisIdBarang,
     totalDataAmbil,
+  ]);
+
+  useEffect(() => {
+    getAset();
+  }, [
+    pageAset,
+    totalDataAset,
+    period,
+    searchAset,
+    jenisIdBarang,
+    totalDataBarang,
   ]);
 
   useEffect(() => {
@@ -331,6 +390,7 @@ function Stok() {
           nama_barang: namaBarang,
           tanggal: moment(tanggalBarang).format("YYYY-MM-DD HH:mm:ss"),
           jenis_barang_id: jenisBarang?.value,
+          kategori_barang: "Stok",
           jumlah: sparatorReverse(jumlahBarang),
           satuan: satuanBarang,
         },
@@ -339,6 +399,32 @@ function Stok() {
       toastSuccess(response.data.meta.message);
       setShowTambahBarang(false);
       setTotalDataBarang(totalDataBarang + 1);
+    } catch (error) {
+      toastError((error as any).response.data.data.error as string);
+    } finally {
+      setIsAddBarang(false);
+    }
+  };
+
+  const tambahAset = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsAddBarang(true);
+    try {
+      const response = await postWithAuth(
+        "barang",
+        {
+          nama_barang: namaBarang,
+          tanggal: moment(tanggalBarang).format("YYYY-MM-DD HH:mm:ss"),
+          jenis_barang_id: jenisBarang?.value,
+          kategori_barang: "Aset",
+          jumlah: sparatorReverse(jumlahBarang),
+          satuan: satuanBarang,
+        },
+        token ?? ""
+      );
+      toastSuccess(response.data.meta.message);
+      setShowTambahAset(false);
+      setTotalDataAset(totalDataAset + 1);
     } catch (error) {
       toastError((error as any).response.data.data.error as string);
     } finally {
@@ -488,7 +574,7 @@ function Stok() {
           className="flex w-full flex-col gap-4"
         >
           <h1 className="text-center text-24 font-bold xl:text-start xl:text-40">
-            Tambah Barang
+            Tambah Stok
           </h1>
           <div className="flex flex-col justify-between gap-4 xl:flex-row">
             <div className="w-full xl:w-1/2">
@@ -546,6 +632,88 @@ function Stok() {
           <div className="flex w-full justify-center gap-4 xl:justify-end">
             <Button
               onClick={() => setShowTambahBarang(false)}
+              text={"Batalkan"}
+              type={"button"}
+              style={"third"}
+            />
+            <Button
+              text={"Simpan Data"}
+              type={"submit"}
+              style={"primary"}
+              isLoading={isAddBarang}
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Aset */}  
+      <Modal
+        visible={showTambahAset}
+        onClose={() => setShowTambahAset(false)}
+      >
+        <form
+          onSubmit={(e) => tambahAset(e)}
+          className="flex w-full flex-col gap-4"
+        >
+          <h1 className="text-center text-24 font-bold xl:text-start xl:text-40">
+            Tambah Aset
+          </h1>
+          <div className="flex flex-col justify-between gap-4 xl:flex-row">
+            <div className="w-full xl:w-1/2">
+              <p className="mb-2 text-16 font-semibold">Nama Barang</p>
+              <TextField
+                required
+                type={"standart"}
+                placeholder={"Masukkan Nama Barang"}
+                onChange={(e) => setNamaBarang(e.target.value)}
+              />
+            </div>
+            <div className="w-full xl:w-1/2">
+              <p className="mb-2 text-16 font-semibold">Jenis Barang</p>
+              <Dropdown
+                required
+                placeholder={"Jenis Barang"}
+                type={"Jenis Barang"}
+                options={jenisData}
+                onChange={(e) => setJenisBarang(e!)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col justify-between gap-4 xl:flex-row">
+            <div className="w-full xl:w-1/2">
+              <p className="mb-2 text-16 font-semibold">Jumlah Barang</p>
+              <TextField
+                required
+                type={"standart"}
+                placeholder={"Masukkan Jumlah Stok"}
+                value={sparator(jumlahBarang)}
+                onChange={(e) => setJumlahBarang(e.target.value)}
+              />
+            </div>
+            <div className="w-full xl:w-1/2">
+              <p className="mb-2 text-16 font-semibold">Satuan</p>
+              <TextField
+                required
+                type={"standart"}
+                placeholder={"Masukkan Satuan"}
+                onChange={(e) => setSatuanBarang(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col justify-between gap-4 xl:flex-row">
+            <div className="w-full xl:w-1/2">
+              <p className="mb-2 text-16 font-semibold">Tanggal</p>
+              <DateFieldNormal
+                required
+                text={"Masukkan Tanggal"}
+                onChange={(val: Date) => setTanggalBarang(val)}
+                value={tanggalBarang}
+              />
+            </div>
+          </div>
+          <div className="flex w-full justify-center gap-4 xl:justify-end">
+            <Button
+              onClick={() => setShowTambahAset(false)}
               text={"Batalkan"}
               type={"button"}
               style={"third"}
@@ -861,97 +1029,187 @@ function Stok() {
           </div>
         </div>
         <div className="mt-10 flex flex-col justify-between gap-5 xl:flex-row">
-          <div className="flex w-full flex-col rounded-xl bg-white py-5 shadow-card xl:w-1/2">
-            <div className="mb-5 flex justify-end gap-5 px-3">
-              {user?.role == "BOD" && (
+          <div className="flex flex-col w-full">
+            <div className="flex w-full flex-col rounded-xl bg-white py-5 shadow-card">
+              <div className="mb-5 flex justify-end gap-5 px-3">
+                {user?.role == "BOD" && (
+                  <Button
+                    onClick={() => setShowEditJenis(true)}
+                    type="button"
+                    style="third"
+                    text="Edit Jenis"
+                  />
+                )}
                 <Button
-                  onClick={() => setShowEditJenis(true)}
+                  onClick={() => {
+                    setShowTambahBarang(true);
+                    // Reset
+                    setJumlahBarang("");
+                    setTanggalBarang(
+                      period
+                        ? new Date(
+                            `${period.value.split("-")[1]}-${
+                              period.value.split("-")[0]
+                            }-01`
+                          )
+                        : null
+                    );
+                  }}
                   type="button"
-                  style="third"
-                  text="Edit Jenis"
+                  style="primary"
+                  text="Tambah Stok +"
                 />
-              )}
-              <Button
-                onClick={() => {
-                  setShowTambahBarang(true);
-                  // Reset
-                  setJumlahBarang("");
+              </div>
+              <div className="mb-5 flex w-full items-center justify-between gap-8 px-3">
+                <p className="hidden text-16 font-bold xl:block xl:text-20">
+                  Daftar Stok
+                </p>
+                <div className="flex items-center gap-2">
+                  <TextField
+                    type={"search"}
+                    placeholder={"Cari"}
+                    onChange={(e) => setSearchBarang(e.target.value)}
+                  />
+                  <Filter
+                    onSelected={(val) => setJenisIdBarang(val)}
+                    selected={jenisIdBarang}
+                    data={jenisData}
+                  />
+                </div>
+                <div
+                  className={`${
+                    onSelectedBarang.length > 0 ? "visible" : "invisible"
+                  }`}
+                >
+                  <Button
+                    onClick={() => setShowHapusBarang(true)}
+                    text={"Hapus"}
+                    type={"button"}
+                    style={"delete"}
+                  />
+                </div>
+              </div>
+              <Table
+                data={dataBarang}
+                column={kolomBarang}
+                isLoading={isTableLoadBarang}
+                page={pageBarang}
+                dataLimit={10}
+                isEdit={user?.role == "BOD"}
+                isCheck={user?.role == "BOD"}
+                onEdit={(val) => {
+                  setIdEditBarang((dataBarang[val] as any).id);
+                  setShowEditBarang(true);
+                  setJenisBarang(
+                    jenisData.filter(
+                      (item) => item.label == (dataBarang[val] as any).jenis
+                    )[0]
+                  );
+                  setNamaBarang((dataBarang[val] as any).nama_barang);
+                  setJumlahBarang((dataBarang[val] as any).jumlah);
+                  setSatuanBarang((dataBarang[val] as any).satuan);
                   setTanggalBarang(
-                    period
-                      ? new Date(
-                          `${period.value.split("-")[1]}-${
-                            period.value.split("-")[0]
-                          }-01`
-                        )
-                      : null
+                    moment(
+                      Date.parse((dataBarang[val] as any).tanggal)
+                    ).toDate()
                   );
                 }}
-                type="button"
-                style="primary"
-                text="Tambah Barang +"
+                onSelected={(val) => setOnSelectedBarang(val)}
+                selected={onSelectedBarang}
+              />
+              <Paginate
+                totalPages={totalPageBarang}
+                current={(page) => setPageBarang(page)}
+                totalData={totalDataBarang}
+                dataLimit={10}
               />
             </div>
-            <div className="mb-5 flex w-full items-center justify-between gap-8 px-3">
-              <p className="hidden text-16 font-bold xl:block xl:text-20">
-                Daftar Barang
-              </p>
-              <div className="flex items-center gap-2">
-                <TextField
-                  type={"search"}
-                  placeholder={"Cari"}
-                  onChange={(e) => setSearchBarang(e.target.value)}
-                />
-                <Filter
-                  onSelected={(val) => setJenisIdBarang(val)}
-                  selected={jenisIdBarang}
-                  data={jenisData}
-                />
-              </div>
-              <div
-                className={`${
-                  onSelectedBarang.length > 0 ? "visible" : "invisible"
-                }`}
-              >
+            <div className="flex w-full flex-col rounded-xl bg-white py-5 shadow-card mt-4">
+              <div className="mb-5 flex justify-end gap-5 px-3">
                 <Button
-                  onClick={() => setShowHapusBarang(true)}
-                  text={"Hapus"}
-                  type={"button"}
-                  style={"delete"}
+                  onClick={() => {
+                    setShowTambahAset(true);
+                    // Reset
+                    setJumlahBarang("");
+                    setTanggalBarang(
+                      period
+                        ? new Date(
+                            `${period.value.split("-")[1]}-${
+                              period.value.split("-")[0]
+                            }-01`
+                          )
+                        : null
+                    );
+                  }}
+                  type="button"
+                  style="primary"
+                  text="Tambah Aset +"
                 />
               </div>
+              <div className="mb-5 flex w-full items-center justify-between gap-8 px-3">
+                <p className="hidden text-16 font-bold xl:block xl:text-20">
+                  Daftar Aset
+                </p>
+                <div className="flex items-center gap-2">
+                  <TextField
+                    type={"search"}
+                    placeholder={"Cari"}
+                    onChange={(e) => setSearchAset(e.target.value)}
+                  />
+                  <Filter
+                    onSelected={(val) => setJenisIdBarang(val)}
+                    selected={jenisIdBarang}
+                    data={jenisData}
+                  />
+                </div>
+                <div
+                  className={`${
+                    onSelectedAset.length > 0 ? "visible" : "invisible"
+                  }`}
+                >
+                  <Button
+                    onClick={() => setShowHapusBarang(true)}
+                    text={"Hapus"}
+                    type={"button"}
+                    style={"delete"}
+                  />
+                </div>
+              </div>
+              <Table
+                data={dataAset}
+                column={kolomBarang}
+                isLoading={isTableLoadBarang}
+                page={pageAset}
+                dataLimit={10}
+                isEdit={user?.role == "BOD"}
+                isCheck={user?.role == "BOD"}
+                onEdit={(val) => {
+                  setIdEditBarang((dataAset[val] as any).id);
+                  setShowEditBarang(true);
+                  setJenisBarang(
+                    jenisData.filter(
+                      (item) => item.label == (dataAset[val] as any).jenis
+                    )[0]
+                  );
+                  setNamaBarang((dataAset[val] as any).nama_barang);
+                  setJumlahBarang((dataAset[val] as any).jumlah);
+                  setSatuanBarang((dataAset[val] as any).satuan);
+                  setTanggalBarang(
+                    moment(
+                      Date.parse((dataAset[val] as any).tanggal)
+                    ).toDate()
+                  );
+                }}
+                onSelected={(val) => setOnSelectedAset(val)}
+                selected={onSelectedAset}
+              />
+              <Paginate
+                totalPages={totalPageAset}
+                current={(page) => setPageAset(page)}
+                totalData={totalDataAset}
+                dataLimit={10}
+              />
             </div>
-            <Table
-              data={dataBarang}
-              column={kolomBarang}
-              isLoading={isTableLoadBarang}
-              page={pageBarang}
-              dataLimit={10}
-              isEdit={user?.role == "BOD"}
-              isCheck={user?.role == "BOD"}
-              onEdit={(val) => {
-                setIdEditBarang((dataBarang[val] as any).id);
-                setShowEditBarang(true);
-                setJenisBarang(
-                  jenisData.filter(
-                    (item) => item.label == (dataBarang[val] as any).jenis
-                  )[0]
-                );
-                setNamaBarang((dataBarang[val] as any).nama_barang);
-                setJumlahBarang((dataBarang[val] as any).jumlah);
-                setSatuanBarang((dataBarang[val] as any).satuan);
-                setTanggalBarang(
-                  moment(Date.parse((dataBarang[val] as any).tanggal)).toDate()
-                );
-              }}
-              onSelected={(val) => setOnSelectedBarang(val)}
-              selected={onSelectedBarang}
-            />
-            <Paginate
-              totalPages={totalPageBarang}
-              current={(page) => setPageBarang(page)}
-              totalData={totalDataBarang}
-              dataLimit={10}
-            />
           </div>
           <div className="flex w-full flex-col rounded-xl bg-white py-5 shadow-card xl:w-1/2">
             <div className="mb-5 flex justify-end gap-5 px-3">

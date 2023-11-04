@@ -1,4 +1,5 @@
 import moment from "moment";
+import { formatRpReverse } from "./formatRp";
 
 interface EmployeeAttendance {
   nama_karyawan: string;
@@ -6,6 +7,22 @@ interface EmployeeAttendance {
   kehadiran_actual: number;
   kehadiran_standart: number;
   keterlambatan: number;
+}
+
+interface Pendapatan {
+  tanggal: string;
+  kategori: string;
+  jumlah: number;
+  pengirim: string;
+  deskripsi: number;
+}
+
+interface Pengeluaran {
+  tanggal: string;
+  kategori: string;
+  jenis: string;
+  jumlah: number;
+  deskripsi: number;
 }
 
 export function readEmt(originalData: any) {
@@ -151,6 +168,46 @@ export function readNonEmt(originalData: any) {
         mappedData.push(employeeInfo);
         cekUser = false;
       }
+    }
+    return mappedData;
+  } catch (error) {
+    throw "Please check excel format";
+  }
+}
+
+export function readPendapatan(originalData: any) {
+  try {
+    const mappedData: Pendapatan[] = [];
+
+    for (let i = 0; i < originalData.length; i++) {
+      const pendapatanInfo: Pendapatan = {
+        tanggal: moment(originalData[i].tanggal).format("YYYY-MM-DD HH:mm:ss"),
+        kategori: originalData[i].kategori,
+        jumlah: parseInt(formatRpReverse(originalData[i].jumlah)),
+        pengirim: originalData[i].pengirim,
+        deskripsi: originalData[i].deskripsi,
+      };
+      mappedData.push(pendapatanInfo);
+    }
+    return mappedData;
+  } catch (error) {
+    throw "Please check excel format";
+  }
+}
+
+export function readPengeluaran(originalData: any) {
+  try {
+    const mappedData: Pengeluaran[] = [];
+
+    for (let i = 0; i < originalData.length; i++) {
+      const pengeluaranInfo: Pengeluaran = {
+        tanggal: moment(originalData[i].tanggal).format("YYYY-MM-DD HH:mm:ss"),
+        kategori: originalData[i].kategori,
+        jenis: originalData[i].jenis,
+        jumlah: parseInt(formatRpReverse(originalData[i].jumlah)),
+        deskripsi: originalData[i].deskripsi,
+      };
+      mappedData.push(pengeluaranInfo);
     }
     return mappedData;
   } catch (error) {
