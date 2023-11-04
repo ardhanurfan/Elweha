@@ -16,6 +16,8 @@ import Filter from "../../components/Filter";
 import { UserContext } from "../../Context/UserContext";
 import { sparator, sparatorReverse } from "../../data/sparator";
 import EditModal from "../../components/EditModal";
+import * as XLSX from "xlsx";
+import * as FileSaver from "file-saver";
 
 function Stok() {
   // Loading
@@ -70,6 +72,7 @@ function Stok() {
 
   // Data
   const [dataBarang, setDataBarang] = useState([]);
+  const [exportDataBarang, setExportDataBarang] = useState([]);
   const [dataAset, setDataAset] = useState([]);
   const [dataAmbil, setDataAmbil] = useState([]);
 
@@ -144,8 +147,30 @@ function Stok() {
             user.role == "OFFICER" ? "&user_id=" + user.id : ""
           }`
         );
+        const barang1 = await getWithAuth(
+          token,
+          `barang?kategori_barang=Stok&month=${
+            period ? period?.value.split("-")[0] : ""
+          }&year=${
+            period ? period?.value.split("-")[1] : ""
+          }&search=${searchBarang}${filter}${
+            user.role == "OFFICER" ? "&user_id=" + user.id : ""
+          }`
+        );
         setDataBarang(
           barang.data.data.data.map((data: any) => {
+            return {
+              id: data.id,
+              tanggal: moment(data.tanggal).format("DD MMMM YYYY"),
+              nama_barang: data.nama_barang,
+              jenis: data.jenis.nama,
+              jumlah: sparator(data.jumlah),
+              satuan: data.satuan,
+            };
+          })
+        );
+        setExportDataBarang(
+          barang1.data.data.data.map((data: any) => {
             return {
               id: data.id,
               tanggal: moment(data.tanggal).format("DD MMMM YYYY"),
@@ -546,6 +571,27 @@ function Stok() {
       toastError((error as any).response.data.meta.message as string);
     } finally {
       setIsHapusAmbil(false);
+    }
+  };
+
+  const ExportFile = (data: any, name: string) => {
+    try {
+      if (data.length > 0){
+        const fileType = [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+        ];
+        const fileExtension = ".xlsx";
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = { Sheets: { data: ws }, SheetNames: ["data"] };
+        const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+        const datum = new Blob([excelBuffer], { type: fileType[0] });
+        FileSaver.saveAs(datum, name + fileExtension);
+      }else{
+        toastError("Export file failed. Data is empty");
+      }
+    } catch (error) {
+      toastError("Export file failed");
     }
   };
 
@@ -1031,7 +1077,13 @@ function Stok() {
         <div className="mt-10 flex flex-col justify-between gap-5 xl:flex-row">
           <div className="flex flex-col w-full">
             <div className="flex w-full flex-col rounded-xl bg-white py-5 shadow-card">
-              <div className="mb-5 flex justify-end gap-5 px-3">
+              <div className="mb-5 flex justify-end gap-3 px-3">
+              <Button
+              onClick={() => ExportFile(exportDataBarang, "Stok Barang")}
+              text={"Export Stok"}
+              type={"button"}
+              style={"third"}
+            />
                 {user?.role == "BOD" && (
                   <Button
                     onClick={() => setShowEditJenis(true)}
