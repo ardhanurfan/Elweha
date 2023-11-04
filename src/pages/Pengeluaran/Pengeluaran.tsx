@@ -57,6 +57,7 @@ function Pengeluaran() {
 
   // Data
   const [data, setData] = useState([]);
+  const [exportData, setExportData] = useState([]);
   const [totalPengeluaran, setTotalPengeluaran] = useState(0);
 
   // Table
@@ -119,8 +120,30 @@ function Pengeluaran() {
             user.role == "OFFICER" ? "&user_id=" + user.id : ""
           }`
         );
+        const pengeluaran1 = await getWithAuth(
+          token,
+          `pengeluaran?month=${
+            period ? period?.value.split("-")[0] : ""
+          }&year=${
+            period ? period?.value.split("-")[1] : ""
+          }&search=${search}${filter}${
+            user.role == "OFFICER" ? "&user_id=" + user.id : ""
+          }`
+        );
         setData(
           pengeluaran.data.data.table.data.map((data: any) => {
+            return {
+              id: data.id,
+              tanggal: moment(data.tanggal).format("DD MMMM YYYY"),
+              kategori: data.kategori.nama,
+              jenis: data.jenis.nama,
+              jumlah: formatRp(data.jumlah),
+              deskripsi: data.deskripsi,
+            };
+          })
+        );
+        setExportData(
+          pengeluaran1.data.data.table.data.map((data: any) => {
             return {
               id: data.id,
               tanggal: moment(data.tanggal).format("DD MMMM YYYY"),
@@ -405,16 +428,20 @@ function Pengeluaran() {
 
   const ExportFile = (data: any, name: string) => {
     try {
-      const fileType = [
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
-      ];
-      const fileExtension = ".xlsx";
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = { Sheets: { data: ws }, SheetNames: ["data"] };
-      const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      const datum = new Blob([excelBuffer], { type: fileType[0] });
-      FileSaver.saveAs(datum, name + fileExtension);
+      if (data.length > 0){
+        const fileType = [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+        ];
+        const fileExtension = ".xlsx";
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = { Sheets: { data: ws }, SheetNames: ["data"] };
+        const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+        const datum = new Blob([excelBuffer], { type: fileType[0] });
+        FileSaver.saveAs(datum, name + fileExtension);
+      }else{
+        toastError("Export file failed. Data is empty");
+      }
     } catch (error) {
       toastError("Export file failed");
     }
@@ -702,7 +729,7 @@ function Pengeluaran() {
               style={"third"}
             />
             <Button
-              onClick={() => ExportFile(data, "Pengeluaran")}
+              onClick={() => ExportFile(exportData, "Pengeluaran")}
               text={"Export Pengeluaran"}
               type={"button"}
               style={"third"}
